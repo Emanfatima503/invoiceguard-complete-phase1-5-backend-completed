@@ -1,0 +1,304 @@
+{
+  "name": "InvoiceGuard - Phase 1 Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "invoiceguard/intake",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Invoice Intake Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst item = $input.first();\nconst b = item.binary?.data;\nif (!b) throw new Error('Missing invoice attachment binary data');\nconst buf = Buffer.from(b.data, 'base64');\nitem.json = {...item.json, file_sha256: crypto.createHash('sha256').update(buf).digest('hex'), received_at: new Date().toISOString()};\nreturn item;"
+      },
+      "id": "hash",
+      "name": "SHA-256 + Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/invoices?file_sha256=eq.' + $json.file_sha256 + '&select=id,status'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check",
+      "name": "Duplicate Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.length}}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "ifnew",
+      "name": "New File?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SUPABASE_URL + '/storage/v1/object/invoices/' + $node['SHA-256 + Metadata'].json.file_sha256 + '-' + ($binary.data.fileName || 'invoice.bin')}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            }
+          ],
+          "sendBody": true,
+          "contentType": "binaryData",
+          "bodyContentType": "binaryData",
+          "inputDataFieldName": "data"
+        },
+        "options": {}
+      },
+      "id": "storage",
+      "name": "Store Private File",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/rest/v1/invoices'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.SUPABASE_SERVICE_ROLE_KEY}}"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({file_key: $node['SHA-256 + Metadata'].json.file_sha256 + '-' + ($binary.data.fileName || 'invoice.bin'), file_name: $binary.data.fileName, mime_type: $binary.data.mimeType, file_sha256: $node['SHA-256 + Metadata'].json.file_sha256, source: 'email', source_message_id: $node['Invoice Intake Webhook'].json.message_id || null, status: 'received', currency: 'PKR'})}}",
+        "options": {}
+      },
+      "id": "insert",
+      "name": "Create Invoice Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"message\":\"Invoice accepted\"}",
+        "options": {}
+      },
+      "id": "done",
+      "name": "Accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1560,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"duplicate\":true}",
+        "options": {}
+      },
+      "id": "dup",
+      "name": "Duplicate Stop",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.INVOICEGUARD_BASE_URL + '/api/invoices/process'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.PROCESSING_SECRET}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({invoice_id: $node['Create Invoice Row'].json[0]?.id || $node['Create Invoice Row'].json.id})}}",
+        "options": {}
+      },
+      "id": "process",
+      "name": "Process Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        -100
+      ]
+    }
+  ],
+  "connections": {
+    "Invoice Intake Webhook": {
+      "main": [
+        [
+          {
+            "node": "SHA-256 + Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SHA-256 + Metadata": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Check": {
+      "main": [
+        [
+          {
+            "node": "New File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New File?": {
+      "main": [
+        [
+          {
+            "node": "Store Private File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicate Stop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Private File": {
+      "main": [
+        [
+          {
+            "node": "Create Invoice Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Invoice Row": {
+      "main": [
+        [
+          {
+            "node": "Process Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Invoice": {
+      "main": [
+        [
+          {
+            "node": "Accepted",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

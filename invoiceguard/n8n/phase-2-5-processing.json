@@ -1,0 +1,18 @@
+{
+  "name": "InvoiceGuard - Phases 2-5 Processing",
+  "nodes": [
+    {
+      "parameters": {"httpMethod":"POST","path":"invoiceguard/process","responseMode":"onReceived","options":{}},
+      "id":"webhook","name":"Process Invoice Webhook","type":"n8n-nodes-base.webhook","typeVersion":2,"position":[0,0]
+    },
+    {
+      "parameters": {"method":"POST","url":"={{$env.INVOICEGUARD_BASE_URL + '/api/invoices/process'}}","sendHeaders":true,"headerParameters":{"parameters":[{"name":"Authorization","value":"=Bearer {{$env.PROCESSING_SECRET}}"},{"name":"Content-Type","value":"application/json"}]},"sendBody":true,"contentType":"json","jsonBody":"={{JSON.stringify({invoice_id: $json.invoice_id})}}","options":{}},
+      "id":"process","name":"Run Detection + Extraction + Risk","type":"n8n-nodes-base.httpRequest","typeVersion":4.2,"position":[280,0]
+    },
+    {
+      "parameters":{"respondWith":"json","responseBody":"={{JSON.stringify($json)}}","options":{}},
+      "id":"done","name":"Processed","type":"n8n-nodes-base.respondToWebhook","typeVersion":1.4,"position":[560,0]
+    }
+  ],
+  "connections":{"Process Invoice Webhook":{"main":[[{"node":"Run Detection + Extraction + Risk","type":"main","index":0}]]},"Run Detection + Extraction + Risk":{"main":[[{"node":"Processed","type":"main","index":0}]]}}
+}

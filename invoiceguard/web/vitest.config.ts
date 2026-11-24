@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": srcDir,
+      // `server-only` throws outside a React Server Components bundler, so
+      // Vitest (plain Node) cannot import any module that pulls it in.
+      // Alias it to an inert stub for tests only; production is unaffected.
+      "server-only": path.join(srcDir, "lib/__tests__/server-only-stub.ts"),
     },
   },
   test: {

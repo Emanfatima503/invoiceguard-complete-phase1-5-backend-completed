@@ -54,7 +54,6 @@ export async function extractWithPdfToText(bytes: Buffer): Promise<string> {
 export async function extractWithPdfJs(bytes: Buffer): Promise<string> {
   try {
     // pdfjs-dist is intentionally optional at runtime; install it in web/package.json.
-    // @ts-expect-error - pdfjs-dist's Node typings vary by release.
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
     const pdf = await loadingTask.promise;
@@ -62,7 +61,7 @@ export async function extractWithPdfJs(bytes: Buffer): Promise<string> {
     for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
       const page = await pdf.getPage(pageNo);
       const content = await page.getTextContent();
-      const text = content.items.map((item: unknown) => ("str" in item ? item.str : "")).join(" ");
+      const text = content.items.map((item: unknown) => (typeof item === "object" && item !== null && "str" in item && typeof item.str === "string" ? item.str : "")).join(" ");
       pages.push(text);
     }
     return cleanText(pages.join("\n"));

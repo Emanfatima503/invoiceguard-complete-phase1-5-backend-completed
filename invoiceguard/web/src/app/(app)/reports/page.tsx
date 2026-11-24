@@ -39,7 +39,7 @@ export default async function ReportsPage() {
   }
   const currencyTotals = [...totalsByCurrency.entries()].sort(([a], [b]) => a.localeCompare(b));
 
-  const high = inv.filter((x) => ["priority", "hold"].includes(x.risk_band)).length;
+  const high = inv.filter((x) => ["priority", "hold"].includes(x.risk_band ?? "")).length;
   const approved = reviews.filter((x) => x.decision === "approve").length;
 
   return (

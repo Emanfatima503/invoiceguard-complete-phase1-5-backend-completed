@@ -25,6 +25,66 @@ export type VendorRiskSummary = {
   total: number;
 };
 
+/**
+ * Row shapes as the pages read them. The Supabase client has no Database
+ * generic, so its inferred join shape (every embedded relation as an array)
+ * does not match what PostgREST actually returns for these many-to-one
+ * foreign keys: a single object, or null when the reference is unresolved.
+ * The loaders below cast to these types at the boundary; the queries and
+ * the data are unchanged.
+ */
+export type VendorRef = { legal_name: string | null };
+
+export type InvoiceRow = {
+  id: string;
+  invoice_number: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  currency: string | null;
+  total: number | null;
+  status: string | null;
+  risk_score: number | null;
+  risk_band: string | null;
+  created_at: string | null;
+  file_name: string | null;
+  vendor_id: string | null;
+  vendors: VendorRef | null;
+};
+
+/** An invoice as embedded by a many-to-one join (duplicate refs, risk findings). */
+export type InvoiceRef = {
+  invoice_number: string | null;
+  invoice_date?: string | null;
+  currency: string | null;
+  total: number | null;
+  vendor_id: string | null;
+  vendors: VendorRef | null;
+};
+
+export type RiskFindingRow = {
+  id: string;
+  invoice_id: string | null;
+  reason_code: string;
+  severity: string | null;
+  evidence: { message?: string; reason?: string } | null;
+  score_contribution: number | null;
+  status: string | null;
+  created_at: string | null;
+  invoices: InvoiceRef | null;
+};
+
+export type DuplicateCandidateRow = {
+  id: string;
+  invoice_a: string | null;
+  invoice_b: string | null;
+  match_score: number | null;
+  match_reasons: string[] | null;
+  review_status: string | null;
+  created_at: string | null;
+  invoice_a_ref: InvoiceRef | null;
+  invoice_b_ref: InvoiceRef | null;
+};
+
 /** Fall back to the default when the caller passes no usable limit. */
 function normalizeLimit(value: number | undefined, fallback: number): number {
   if (value === undefined) return fallback;
@@ -50,7 +110,7 @@ function escapeIlike(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
-export async function listInvoices(opts: ListInvoicesOptions = {}) {
+export async function listInvoices(opts: ListInvoicesOptions = {}): Promise<InvoiceRow[]> {
   const limit = normalizeLimit(opts.limit, 100);
   const offset = normalizeOffset(opts.offset);
   const status = normalizeStatus(opts.status);
@@ -87,7 +147,7 @@ export async function listInvoices(opts: ListInvoicesOptions = {}) {
     for (const row of [...(numberRes.data ?? []), ...vendorMatches]) byId.set(row.id, row);
     // Newest first; id breaks ties so equal timestamps order deterministically.
     const merged = [...byId.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(a.id).localeCompare(String(b.id)));
-    return merged.slice(offset, offset + limit);
+    return merged.slice(offset, offset + limit) as unknown as InvoiceRow[];
   }
 
   // Plain path: status filters are applied BEFORE the limit/range so the
@@ -96,7 +156,7 @@ export async function listInvoices(opts: ListInvoicesOptions = {}) {
   if (status) query = Array.isArray(status) ? query.in("status", status) : query.eq("status", status);
   const { data, error } = await query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as unknown as InvoiceRow[];
 }
 
 export async function listVendors() {
@@ -106,20 +166,20 @@ export async function listVendors() {
   return data ?? [];
 }
 
-export async function listRiskFindings(opts: ListOptions = {}) {
+export async function listRiskFindings(opts: ListOptions = {}): Promise<RiskFindingRow[]> {
   const limit = normalizeLimit(opts.limit, 200);
   const offset = normalizeOffset(opts.offset);
   const sb = await supabase();
   const { data, error } = await sb.from("risk_findings").select(RISK_FINDING_SELECT).order("created_at", { ascending: false }).range(offset, offset + limit - 1);
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as unknown as RiskFindingRow[];
 }
 
-export async function listDuplicates() {
+export async function listDuplicates(): Promise<DuplicateCandidateRow[]> {
   const sb = await supabase();
   const { data, error } = await sb.from("duplicate_candidates").select(DUPLICATE_SELECT).order("match_score", { ascending: false });
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []) as unknown as DuplicateCandidateRow[];
 }
 
 export async function listReviews() {

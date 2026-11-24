@@ -62,9 +62,9 @@ invoiceguard/
 |---|---|
 | Project URL | `web/.env.local` → `NEXT_PUBLIC_SUPABASE_URL` |
 | Publishable key (`sb_publishable_…`, or the legacy **anon** key) | `web/.env.local` → `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
-| Secret key (`sb_secret_…`, or legacy **service_role**) | `web/.env.local` server-only variable `SUPABASE_SERVICE_ROLE_KEY` **and** n8n Phase 1 credential |
+| Secret key (`sb_secret_…`, or legacy **service_role**) | `web/.env.local` server-only variable `SUPABASE_SERVICE_ROLE_KEY` **and** the n8n environment variable `SUPABASE_SERVICE_ROLE_KEY` |
 
-⚠️ The secret key bypasses all security rules. Never put it in `web/`, never commit it, and never paste it in chat.
+⚠️ The secret key bypasses all security rules. Never commit it, never put it in committed source code, and never paste it in chat.
 
 ## Step 5: Run the dashboard
 
@@ -114,4 +114,4 @@ To re-run the tests yourself, you need local Postgres 16: run `stubs.sql`, then 
 - [ ] `npm run dev` works, you can log in, and the dashboard shows zeros
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` set server-side and secret saved safely
 
-When all boxes are ticked, Phase 1 builds the intake: the Gmail watch and drag-and-drop upload both feed one n8n webhook, which handles hashing, duplicate stops, storage, PDF text, OCR.space fallback, and the invoice draft.
+When all boxes are ticked, Phase 1 builds the intake. The two sources feed the same pipeline through different doors: drag-and-drop upload in the browser posts straight to the Next.js `/api/intake` route, which validates the file, hashes it, blocks SHA-256 duplicates, stores it privately, creates the invoice row, and runs processing in-process. Automated sources post attachments to the n8n intake webhook (`n8n/phase-1-intake.json`), which does the same hashing, duplicate stop, storage and row creation, then triggers processing through `POST /api/invoices/process`. In both cases the text extraction, OCR.space fallback, Groq normalization and risk scoring run in the Next.js `processInvoice` function, not in n8n. Gmail ingestion is a manual n8n setup, not a shipped workflow: see `n8n/README.md` for the exact steps.

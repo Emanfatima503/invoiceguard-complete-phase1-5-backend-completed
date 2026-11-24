@@ -1,3 +1,76 @@
-import {listDuplicates} from "@/lib/data"; import {updateDuplicate} from "@/lib/actions"; import {PageShell,Empty,Status} from "@/lib/page";
-export default async function DuplicatesPage(){let rows:any[]=[];let error="";try{rows=await listDuplicates()}catch(e:any){error=e.message}return <PageShell title="Duplicates" description="Potential duplicate pairs, compared and reviewed side by side.">{error?<Empty>{error}</Empty>:rows.length===0?<Empty>No duplicate candidates yet.</Empty>:<div className="grid gap-4">{rows.map(r=><div key={r.id} className="glass rounded-2xl p-5"><div className="flex items-center justify-between gap-3"><div className="text-sm text-slate-300">Match score <span className="font-display text-xl font-semibold text-white">{Number(r.match_score).toFixed(0)}%</span></div><Status value={r.review_status}/></div><div className="mt-4 grid gap-3 md:grid-cols-2"><Card x={r.invoice_a_ref}/><Card x={r.invoice_b_ref}/></div><div className="mt-4 flex flex-wrap gap-2"><form action={updateDuplicate}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="status" value="confirmed_duplicate"/><button className="rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">Confirm duplicate</button></form><form action={updateDuplicate}><input type="hidden" name="id" value={r.id}/><input type="hidden" name="status" value="not_duplicate"/><button className="rounded-xl bg-teal/10 px-3 py-2 text-xs text-teal">Not a duplicate</button></form></div></div>)}</div>}</PageShell>}
-function Card({x}:{x:any}){return <div className="rounded-xl border border-white/10 bg-white/[.025] p-4"><p className="text-xs text-slate-500">Invoice</p><p className="mt-1 font-medium text-white">{x?.invoice_number||"—"}</p><p className="mt-2 text-xs text-slate-400">{x?.vendors?.legal_name||"Unknown vendor"}</p><p className="mt-1 text-sm text-slate-300">{x?.currency||""} {x?.total??"—"} · {x?.invoice_date||"—"}</p></div>}
+import { listDuplicates } from "@/lib/data";
+import { updateDuplicate } from "@/lib/actions";
+import { PageShell, Empty, Status } from "@/lib/page";
+
+export default async function DuplicatesPage() {
+  let rows: Awaited<ReturnType<typeof listDuplicates>> = [];
+  let error = "";
+  try {
+    rows = await listDuplicates();
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load duplicates";
+  }
+  return (
+    <PageShell title="Duplicates" description="Potential duplicate pairs, compared and reviewed side by side.">
+      {error ? (
+        <Empty>{error}</Empty>
+      ) : rows.length === 0 ? (
+        <Empty>No duplicate candidates yet.</Empty>
+      ) : (
+        <div className="grid gap-4">
+          {rows.map((r) => (
+            <div key={r.id} className="glass rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm text-slate-300">Match score <span className="font-display text-xl font-semibold text-white">{Number(r.match_score).toFixed(0)}%</span></div>
+                <Status value={r.review_status} />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <Card x={r.invoice_a_ref} />
+                <Card x={r.invoice_b_ref} />
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <form action={updateDuplicate}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="status" value="confirmed_duplicate" />
+                  <button className="rounded-xl bg-danger/10 px-3 py-2 text-xs text-danger">Confirm duplicate</button>
+                </form>
+                <form action={updateDuplicate}>
+                  <input type="hidden" name="id" value={r.id} />
+                  <input type="hidden" name="status" value="not_duplicate" />
+                  <button className="rounded-xl bg-teal/10 px-3 py-2 text-xs text-teal">Not a duplicate</button>
+                </form>
+                {r.review_status !== "pending" && (
+                  <form action={updateDuplicate}>
+                    <input type="hidden" name="id" value={r.id} />
+                    <input type="hidden" name="status" value="pending" />
+                    <button className="rounded-xl bg-white/10 px-3 py-2 text-xs text-white">Reset to pending</button>
+                  </form>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </PageShell>
+  );
+}
+
+/** The invoice reference a duplicate candidate points at (only the fields Card reads). */
+type DuplicateInvoiceRef = {
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  currency?: string | null;
+  total?: number | string | null;
+  vendors?: { legal_name?: string | null } | null;
+} | null | undefined;
+
+function Card({ x }: { x: DuplicateInvoiceRef }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[.025] p-4">
+      <p className="text-xs text-slate-500">Invoice</p>
+      <p className="mt-1 font-medium text-white">{x?.invoice_number || "—"}</p>
+      <p className="mt-2 text-xs text-slate-400">{x?.vendors?.legal_name || "Unknown vendor"}</p>
+      <p className="mt-1 text-sm text-slate-300">{x?.currency || ""} {x?.total ?? "—"} · {x?.invoice_date || "—"}</p>
+    </div>
+  );
+}

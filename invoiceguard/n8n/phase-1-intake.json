@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const crypto = require('crypto');\nconst item = $input.first();\nconst b = item.binary?.data;\nif (!b) throw new Error('Missing invoice attachment binary data');\nconst buf = Buffer.from(b.data, 'base64');\nitem.json = {...item.json, file_sha256: crypto.createHash('sha256').update(buf).digest('hex'), received_at: new Date().toISOString()};\nreturn item;"
+        "jsCode": "const crypto = require('crypto');\nconst item = $input.first();\nconst b = item.binary?.data;\nif (!b) throw new Error('Missing invoice attachment binary data');\nconst allowedTypes = ['application/pdf', 'image/png', 'image/jpeg'];\nif (!allowedTypes.includes(b.mimeType)) throw new Error('Unsupported file type: ' + (b.mimeType || 'unknown'));\nconst buf = Buffer.from(b.data, 'base64');\nif (buf.length > 10 * 1024 * 1024) throw new Error('File exceeds 10 MB');\nconst sha = crypto.createHash('sha256').update(buf).digest('hex');\nconst receivedAt = new Date().toISOString();\nconst safeName = (b.fileName || 'invoice.bin').replace(/[^a-zA-Z0-9._-]/g, '_');\nconst fileKey = receivedAt.slice(0, 10) + '/' + sha + '-' + safeName;\nitem.json = {...item.json, file_sha256: sha, received_at: receivedAt, file_key: fileKey};\nreturn item;"
       },
       "id": "hash",
       "name": "SHA-256 + Metadata",
@@ -46,7 +46,9 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "alwaysOutputData": true
+        }
       },
       "id": "check",
       "name": "Duplicate Check",
@@ -68,7 +70,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{$json.length}}",
+              "leftValue": "={{ $json.id ? 1 : 0 }}",
               "rightValue": 0,
               "operator": {
                 "type": "number",
@@ -89,7 +91,8 @@
     },
     {
       "parameters": {
-        "url": "={{$env.SUPABASE_URL + '/storage/v1/object/invoices/' + $node['SHA-256 + Metadata'].json.file_sha256 + '-' + ($binary.data.fileName || 'invoice.bin')}}",
+        "method": "POST",
+        "url": "={{$env.SUPABASE_URL + '/storage/v1/object/invoices/' + $node['SHA-256 + Metadata'].json.file_key}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -101,12 +104,11 @@
               "name": "apikey",
               "value": "={{$env.SUPABASE_SERVICE_ROLE_KEY}}"
             }
-          ],
-          "sendBody": true,
-          "contentType": "binaryData",
-          "bodyContentType": "binaryData",
-          "inputDataFieldName": "data"
+          ]
         },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
         "options": {}
       },
       "id": "storage",
@@ -141,7 +143,7 @@
         },
         "sendBody": true,
         "contentType": "json",
-        "jsonBody": "={{JSON.stringify({file_key: $node['SHA-256 + Metadata'].json.file_sha256 + '-' + ($binary.data.fileName || 'invoice.bin'), file_name: $binary.data.fileName, mime_type: $binary.data.mimeType, file_sha256: $node['SHA-256 + Metadata'].json.file_sha256, source: 'email', source_message_id: $node['Invoice Intake Webhook'].json.message_id || null, status: 'received', currency: 'PKR'})}}",
+        "jsonBody": "={{JSON.stringify({file_key: $node['SHA-256 + Metadata'].json.file_key, file_name: $binary.data.fileName, mime_type: $binary.data.mimeType, file_sha256: $node['SHA-256 + Metadata'].json.file_sha256, source: 'email', source_message_id: $node['Invoice Intake Webhook'].json.message_id || null, status: 'received', currency: 'PKR'})}}",
         "options": {}
       },
       "id": "insert",

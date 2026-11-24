@@ -13,11 +13,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-white/5 bg-ink-950/60 px-6 backdrop-blur-xl">
-          <label className="glass flex w-full max-w-md items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-500">
-            <Search className="size-4" />
-            <input disabled placeholder="Search invoices, vendors, numbers… (Phase 1)"
-              className="w-full bg-transparent outline-none placeholder:text-slate-500" />
-          </label>
+          <form method="get" action="/invoices" role="search" className="w-full max-w-md">
+            <label className="glass flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-500">
+              <Search className="size-4 shrink-0" />
+              <input
+                name="q"
+                type="search"
+                placeholder="Search invoices, vendors, numbers…"
+                className="w-full bg-transparent outline-none placeholder:text-slate-500"
+              />
+            </label>
+          </form>
           <div className="ml-auto flex items-center gap-3">
             {!configured && (
               <span className="rounded-full border border-warn/30 bg-warn/10 px-3 py-1 text-xs text-warn">Preview mode — Supabase not connected</span>

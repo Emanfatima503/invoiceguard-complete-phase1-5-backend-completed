@@ -1,14 +1,17 @@
 # InvoiceGuard — completion map
 
+> Status note: this map describes what is implemented in the code in this repo. It is not a claim that every phase has been verified end to end against live services. The n8n workflows ship as importable JSON and still need a live import-and-run check, and Gmail ingestion is a manual n8n setup (see `n8n/README.md`), not a shipped workflow. Do not read "complete" below as "tested in production".
+
 ## Phase 0 — Foundation
 - Supabase schema, RLS, private invoices bucket, immutable audit log.
 - Next.js auth/session protection and dashboard.
 - Database gates for approve/export and bank verification.
 
 ## Phase 1 — Intake
-- Gmail attachment ingestion converges on the same intake pipeline as browser upload.
-- Browser upload: PDF/PNG/JPEG, 10 MB limit, SHA-256 duplicate stop, private storage and invoice row creation.
-- n8n starter workflow is included in `n8n/phase-1-intake.json`.
+- Browser upload: PDF/PNG/JPEG, 10 MB limit, SHA-256 duplicate stop, private storage and invoice row creation. It posts directly to the Next.js `/api/intake` route, which runs processing in-process.
+- n8n intake workflow is included in `n8n/phase-1-intake.json`: same validation, hashing, duplicate stop, storage key format and row creation for automated sources, then triggers processing via `POST /api/invoices/process`.
+- Gmail attachment ingestion is a manual n8n setup, not a shipped workflow: a Gmail Trigger node plus an HTTP Request node that POSTs each attachment to the intake webhook. Exact steps are in `n8n/README.md`.
+- Text extraction, OCR, Groq normalization and risk scoring run in the Next.js `processInvoice` function, not in n8n.
 
 ## Phase 2 — Detection
 - Vendor registry.

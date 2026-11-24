@@ -54,7 +54,7 @@ export async function extractWithPdfToText(bytes: Buffer): Promise<string> {
 export async function extractWithPdfJs(bytes: Buffer): Promise<string> {
   try {
     // pdfjs-dist is intentionally optional at runtime; install it in web/package.json.
-    // @ts-ignore - pdfjs-dist's Node typings vary by release.
+    // @ts-expect-error - pdfjs-dist's Node typings vary by release.
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const loadingTask = pdfjs.getDocument({ data: new Uint8Array(bytes), useSystemFonts: true });
     const pdf = await loadingTask.promise;

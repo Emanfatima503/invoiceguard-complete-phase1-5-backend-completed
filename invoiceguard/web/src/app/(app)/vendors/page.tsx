@@ -11,8 +11,8 @@ const RISK_BANDS = ["routine", "review", "priority", "hold"] as const;
 export default async function VendorsPage() {
   let rows: VendorRow[] = [];
   let error = "";
-  let bankAccountsByVendor: Record<string, BankAccountRow[]> = {};
-  let riskByVendor: Record<string, VendorRiskSummary> = {};
+  const bankAccountsByVendor: Record<string, BankAccountRow[]> = {};
+  const riskByVendor: Record<string, VendorRiskSummary> = {};
   try {
     rows = await listVendors();
     const [accounts, risk] = await Promise.all([

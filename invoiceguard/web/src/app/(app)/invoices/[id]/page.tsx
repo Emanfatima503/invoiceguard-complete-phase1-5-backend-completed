@@ -1,9 +1,13 @@
+import { Children, type ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getInvoiceFileUrl, listInvoiceLineItems } from "@/lib/data";
 import { retryInvoice } from "@/lib/actions";
-import { PageShell, Status, Empty } from "@/lib/page";
+import { PageShell, Status } from "@/lib/page";
+
+/** One row of the line-items table, as returned by the data loader. */
+type LineItemRow = Awaited<ReturnType<typeof listInvoiceLineItems>>[number];
 
 export default async function InvoiceDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -75,7 +79,7 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
                 <tr>{["#", "Description", "Qty", "Unit price", "Tax", "Line total"].map((h) => <th key={h} className="px-3 py-3 first:pl-0">{h}</th>)}</tr>
               </thead>
               <tbody>
-                {lineItems.map((item: any) => (
+                {lineItems.map((item: LineItemRow) => (
                   <tr key={item.id} className="border-b border-white/5 last:border-0">
                     <td className="px-3 py-3 first:pl-0 text-slate-500">{item.position}</td>
                     <td className="px-3 py-3 text-slate-200">{item.description || "—"}</td>
@@ -125,12 +129,14 @@ export default async function InvoiceDetail({ params }: { params: Promise<{ id: 
   );
 }
 
-function Section({ title, empty, children }: { title: string; empty: string; children: any }) {
-  const arr = Array.isArray(children) ? children : children?.props?.children;
+function Section({ title, empty, children }: { title: string; empty: string; children: ReactNode }) {
+  // Children.toArray handles single children, arrays and empty values
+  // uniformly, so the empty check does not depend on the children's shape.
+  const arr = Children.toArray(children);
   return (
     <section className="glass rounded-2xl p-5">
       <h2 className="font-display font-medium text-white">{title}</h2>
-      {!arr || arr.length === 0 ? <p className="py-6 text-sm text-slate-500">{empty}</p> : <div className="mt-2">{children}</div>}
+      {arr.length === 0 ? <p className="py-6 text-sm text-slate-500">{empty}</p> : <div className="mt-2">{children}</div>}
     </section>
   );
 }

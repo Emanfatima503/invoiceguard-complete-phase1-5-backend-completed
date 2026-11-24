@@ -71,10 +71,10 @@ export default async function ReportsPage() {
         </div>
       </PageShell>
     );
-  } catch (e: any) {
+  } catch (e) {
     return (
       <PageShell title="Reports" description="Operational fraud indicators, review outcomes and vendor anomalies.">
-        <Empty>{e.message}</Empty>
+        <Empty>{e instanceof Error ? e.message : "Could not load reports"}</Empty>
       </PageShell>
     );
   }

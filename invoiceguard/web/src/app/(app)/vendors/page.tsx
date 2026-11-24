@@ -1,24 +1,28 @@
-import { getVendorRiskSummary, listVendorBankAccounts, listVendors } from "@/lib/data";
+import { getVendorRiskSummary, listVendorBankAccounts, listVendors, type VendorRiskSummary } from "@/lib/data";
 import { verifyBankAccount, verifyVendor } from "@/lib/actions";
 import { PageShell, Empty, Status } from "@/lib/page";
+
+/** Row types come from the data loaders so the page follows their shapes. */
+type VendorRow = Awaited<ReturnType<typeof listVendors>>[number];
+type BankAccountRow = Awaited<ReturnType<typeof listVendorBankAccounts>>[number];
 
 const RISK_BANDS = ["routine", "review", "priority", "hold"] as const;
 
 export default async function VendorsPage() {
-  let rows: any[] = [];
+  let rows: VendorRow[] = [];
   let error = "";
-  let bankAccountsByVendor: Record<string, any[]> = {};
-  let riskByVendor: Record<string, any> = {};
+  let bankAccountsByVendor: Record<string, BankAccountRow[]> = {};
+  let riskByVendor: Record<string, VendorRiskSummary> = {};
   try {
     rows = await listVendors();
     const [accounts, risk] = await Promise.all([
-      Promise.all(rows.map(async (v: any) => ({ vendorId: v.id, accounts: await listVendorBankAccounts(v.id) }))),
+      Promise.all(rows.map(async (v: VendorRow) => ({ vendorId: v.id, accounts: await listVendorBankAccounts(v.id) }))),
       getVendorRiskSummary(),
     ]);
     for (const entry of accounts) bankAccountsByVendor[entry.vendorId] = entry.accounts ?? [];
     for (const summary of risk ?? []) riskByVendor[summary.vendor_id] = summary;
-  } catch (e: any) {
-    error = e.message;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load vendors";
   }
   return (
     <PageShell title="Vendors" description="Vendor registry, identifiers and bank-account verification history.">
@@ -71,7 +75,7 @@ export default async function VendorsPage() {
                     <p className="mt-2 text-sm text-slate-500">No bank accounts on file for this vendor.</p>
                   ) : (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {accounts.map((a: any) => (
+                      {accounts.map((a: BankAccountRow) => (
                         <div key={a.id} className="rounded-xl border border-white/10 bg-white/[.025] p-4">
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-medium text-white">{a.bank_name || "Unknown bank"}</p>

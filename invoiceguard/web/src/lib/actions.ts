@@ -116,10 +116,10 @@ export async function retryInvoice(form: FormData) {
   const { processInvoice } = await import("@/lib/invoice-processing");
   try {
     await processInvoice(invoiceId);
-  } catch (e: any) {
+  } catch (e) {
     // Same failure handling as the intake route: mark the invoice failed
     // with the error in ai_summary, then rethrow so the caller sees it.
-    const message = e?.message || "unknown error";
+    const message = e instanceof Error ? e.message || "unknown error" : "unknown error";
     const { error } = await sb.from("invoices").update({ status: "failed", ai_summary: `Processing failed: ${message}` }).eq("id", invoiceId);
     if (error) throw new Error(error.message);
     revalidatePath("/invoices");
@@ -145,8 +145,8 @@ export async function bulkReview(form: FormData) {
   for (const invoiceId of invoiceIds) {
     try {
       await applyReview(sb, invoiceId, decision, notes);
-    } catch (e: any) {
-      throw new Error(`Bulk review failed for invoice ${invoiceId}: ${e?.message || "unknown error"}`);
+    } catch (e) {
+      throw new Error(`Bulk review failed for invoice ${invoiceId}: ${e instanceof Error ? e.message || "unknown error" : "unknown error"}`);
     }
   }
   revalidatePath("/approvals");

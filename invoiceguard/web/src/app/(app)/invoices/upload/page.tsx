@@ -58,8 +58,8 @@ export default function UploadPage() {
       setMsg(j.duplicate ? "This exact file was already ingested." : `Invoice received. ID: ${j.invoice_id}`);
       setFile(null);
       resetFileInput();
-    } catch (e: any) {
-      setMsg(e.message);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Upload failed");
     } finally {
       setBusy(false);
     }

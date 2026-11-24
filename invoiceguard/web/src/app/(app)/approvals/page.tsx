@@ -8,12 +8,12 @@ import { PageShell, Empty, Status } from "@/lib/page";
 const QUEUE_STATUSES = ["needs_review", "in_review", "info_requested"];
 
 export default async function ApprovalsPage() {
-  let rows: any[] = [];
+  let rows: Awaited<ReturnType<typeof listInvoices>> = [];
   let error = "";
   try {
     rows = await listInvoices({ status: QUEUE_STATUSES, limit: 100 });
-  } catch (e: any) {
-    error = e.message;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load the approvals queue";
   }
   return (
     <PageShell title="Approvals" description="Finance review queue: verify, request information, approve or reject.">

@@ -36,13 +36,14 @@ export async function POST(req: Request) {
     }
     try {
       await (await import("@/lib/invoice-processing")).processInvoice(ins.data.id);
-    } catch (processingError: any) {
-      await sb.from("invoices").update({ status: "failed", ai_summary: `Processing failed: ${processingError.message || "unknown error"}` }).eq("id", ins.data.id);
-      return NextResponse.json({ invoice_id: ins.data.id, file_sha256: sha, status: "failed", processing_error: processingError.message }, { status: 202 });
+    } catch (processingError) {
+      const message = processingError instanceof Error ? processingError.message || "unknown error" : "unknown error";
+      await sb.from("invoices").update({ status: "failed", ai_summary: `Processing failed: ${message}` }).eq("id", ins.data.id);
+      return NextResponse.json({ invoice_id: ins.data.id, file_sha256: sha, status: "failed", processing_error: message }, { status: 202 });
     }
     return NextResponse.json({ invoice_id: ins.data.id, file_sha256: sha, status: "processed" }, { status: 201 });
-  } catch (e: any) {
-    const message = e?.message || "Intake failed";
+  } catch (e) {
+    const message = e instanceof Error ? e.message || "Intake failed" : "Intake failed";
     // Never surface admin configuration details (e.g. the
     // "SUPABASE_SERVICE_ROLE_KEY is not configured" error thrown by admin())
     // to clients: log the real message server-side and return a generic error.

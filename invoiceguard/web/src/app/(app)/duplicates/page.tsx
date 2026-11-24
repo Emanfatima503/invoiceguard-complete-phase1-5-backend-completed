@@ -3,12 +3,12 @@ import { updateDuplicate } from "@/lib/actions";
 import { PageShell, Empty, Status } from "@/lib/page";
 
 export default async function DuplicatesPage() {
-  let rows: any[] = [];
+  let rows: Awaited<ReturnType<typeof listDuplicates>> = [];
   let error = "";
   try {
     rows = await listDuplicates();
-  } catch (e: any) {
-    error = e.message;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load duplicates";
   }
   return (
     <PageShell title="Duplicates" description="Potential duplicate pairs, compared and reviewed side by side.">
@@ -55,7 +55,16 @@ export default async function DuplicatesPage() {
   );
 }
 
-function Card({ x }: { x: any }) {
+/** The invoice reference a duplicate candidate points at (only the fields Card reads). */
+type DuplicateInvoiceRef = {
+  invoice_number?: string | null;
+  invoice_date?: string | null;
+  currency?: string | null;
+  total?: number | string | null;
+  vendors?: { legal_name?: string | null } | null;
+} | null | undefined;
+
+function Card({ x }: { x: DuplicateInvoiceRef }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[.025] p-4">
       <p className="text-xs text-slate-500">Invoice</p>

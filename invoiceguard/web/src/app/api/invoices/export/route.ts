@@ -107,8 +107,8 @@ export async function POST(req: Request) {
     };
     if (skipped > 0) headers["x-export-skipped"] = String(skipped);
     return new NextResponse(csv, { status: 200, headers });
-  } catch (e: any) {
-    console.error("Invoice export failed:", e?.message || e);
+  } catch (e) {
+    console.error("Invoice export failed:", e instanceof Error ? e.message || e : e);
     return NextResponse.json({ error: "Export failed" }, { status: 500 });
   }
 }

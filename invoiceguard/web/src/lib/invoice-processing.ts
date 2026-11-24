@@ -62,18 +62,23 @@ export async function extractWithPdfJs(bytes: Buffer): Promise<string> {
     for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
       const page = await pdf.getPage(pageNo);
       const content = await page.getTextContent();
-      const text = content.items.map((item: any) => ("str" in item ? item.str : "")).join(" ");
+      const text = content.items.map((item: unknown) => ("str" in item ? item.str : "")).join(" ");
       pages.push(text);
     }
     return cleanText(pages.join("\n"));
- } catch (error: any) {
+ } catch (error) {
   console.warn(
     "[InvoiceGuard] PDF.js extraction failed:",
-    error?.message || error
+    error instanceof Error ? error.message || error : error
   );
   return "";
 }
 }
+
+/** The OCR.space response shape this code reads (only ParsedText is used). */
+type OcrSpaceResponse = {
+  ParsedResults?: Array<{ ParsedText?: string | null }> | null;
+};
 
 async function ocrSpace(bytes: Buffer, mimeType: string): Promise<{ text: string; confidence: number | null }> {
   const key = process.env.OCR_SPACE_API_KEY;
@@ -90,8 +95,8 @@ async function ocrSpace(bytes: Buffer, mimeType: string): Promise<{ text: string
   form.append("file", new Blob([new Uint8Array(bytes)], { type: mimeType }), "invoice");
   const response = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: form });
   if (!response.ok) throw new Error(`OCR.space returned ${response.status}`);
-  const json: any = await response.json();
-  const text = cleanText((json.ParsedResults ?? []).map((x: any) => x.ParsedText ?? "").join("\n"));
+  const json: OcrSpaceResponse = await response.json();
+  const text = cleanText((json.ParsedResults ?? []).map((x) => x.ParsedText ?? "").join("\n"));
   // No confidence: OCR.space exposes no word-confidence field, so there is
   // nothing to average. Returning null keeps LOW_OCR_CONFIDENCE from
   // firing on invented data; the finding rule stays for a future OCR
@@ -99,7 +104,7 @@ async function ocrSpace(bytes: Buffer, mimeType: string): Promise<{ text: string
   return { text, confidence: null };
 }
 
-async function callGroq(text: string): Promise<{ normalized: NormalizedInvoice; raw: any; summary: string }> {
+async function callGroq(text: string): Promise<{ normalized: NormalizedInvoice; raw: unknown; summary: string }> {
   const key = process.env.GROQ_API_KEY;
   if (!key) return { normalized: parseDeterministic(text), raw: { skipped: true, reason: "GROQ_API_KEY not configured" }, summary: "Structured extraction used the deterministic parser because GROQ_API_KEY is not configured." };
   const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
@@ -255,13 +260,13 @@ export async function processInvoice(invoiceId: string) {
     try {
       const ocr = await ocrSpace(bytes, invoice.mime_type);
       if (ocr.text.length > text.length) { text = ocr.text; usedOcr = true; ocrConfidence = ocr.confidence; }
-    } catch (ocrError: any) {
+    } catch (ocrError) {
       // OCR is a fallback: a failed OCR call must not abort the run when
       // usable PDF text already exists. Only rethrow when there is no
       // text at all, so the "No readable invoice text" error below (or
       // this error) surfaces instead of a silent empty run.
       if (!text) throw ocrError;
-      console.warn("[InvoiceGuard] OCR fallback failed; continuing with PDF text:", ocrError?.message || ocrError);
+      console.warn("[InvoiceGuard] OCR fallback failed; continuing with PDF text:", ocrError instanceof Error ? ocrError.message || ocrError : ocrError);
     }
   }
   if (!text) throw new Error("No readable invoice text found. Configure OCR_SPACE_API_KEY for scanned PDFs/images.");
@@ -272,11 +277,12 @@ export async function processInvoice(invoiceId: string) {
   const sourceRun = { provider: usedOcr ? "ocr.space" : "pdf-text", model_version: usedOcr ? "OCR.space Engine 2" : "text-extractor", raw_output: { text }, normalized_output: null, confidence: ocrConfidence === null ? {} : { document: ocrConfidence } };
   await sb.from("extraction_runs").insert({ invoice_id: invoiceId, ...sourceRun });
 
-  let ai: { normalized: NormalizedInvoice; raw: any; summary: string };
+  let ai: { normalized: NormalizedInvoice; raw: unknown; summary: string };
   try {
     ai = await callGroq(text);
-  } catch (groqError: any) {
-    ai = { normalized: parseDeterministic(text), raw: { error: groqError.message || "Groq extraction failed" }, summary: `Groq extraction failed; deterministic extraction was used instead. ${groqError.message || ""}`.trim() };
+  } catch (groqError) {
+    const message = groqError instanceof Error ? groqError.message : "";
+    ai = { normalized: parseDeterministic(text), raw: { error: message || "Groq extraction failed" }, summary: `Groq extraction failed; deterministic extraction was used instead. ${message}`.trim() };
   }
   const normalized = ai.normalized;
   normalized.invoice_date = toIsoDate(normalized.invoice_date ?? null);
@@ -333,7 +339,7 @@ export async function processInvoice(invoiceId: string) {
     }
   }
 
-  const updates: any = {
+  const updates = {
     vendor_id: vendorId,
     bank_account_id: bankAccountId,
     invoice_number: normalized.invoice_number || null,
@@ -356,7 +362,7 @@ export async function processInvoice(invoiceId: string) {
     if (inserted.error) throw new Error(inserted.error.message);
   }
 
-  const findings: Array<{ reason_code: string; severity: string; evidence: any; score_contribution: number }> = [];
+  const findings: Array<{ reason_code: string; severity: string; evidence: Record<string, unknown>; score_contribution: number }> = [];
   if (!vendorId) findings.push({ reason_code: "UNKNOWN_VENDOR", severity: "medium", evidence: { message: "No vendor could be resolved from the extracted invoice." }, score_contribution: 20 });
   if (ocrConfidence !== null && ocrConfidence < 80) findings.push({ reason_code: "LOW_OCR_CONFIDENCE", severity: "low", evidence: { message: `OCR confidence was ${ocrConfidence}.` }, score_contribution: 10 });
   const suspiciousTerms = findSuspiciousTerms(text);
@@ -399,7 +405,7 @@ export async function processInvoice(invoiceId: string) {
 
   if (vendorName && normalized.invoice_number && normalized.total != null) {
     const { data: candidates } = await sb.from("invoices").select("id,invoice_number,total,vendor_id,vendors(legal_name)").neq("id", invoiceId).order("created_at", { ascending: false }).limit(200);
-    const candidate = (candidates ?? []).map(c => ({ ...c, score: similarity(`${vendorName}|${normalized.invoice_number}|${normalized.total}`, `${(c as any).vendors?.legal_name || c.vendor_id}|${c.invoice_number}|${c.total}`) * 100 })).sort((a,b)=>b.score-a.score)[0];
+    const candidate = (candidates ?? []).map(c => ({ ...c, score: similarity(`${vendorName}|${normalized.invoice_number}|${normalized.total}`, `${(c as { vendors?: { legal_name?: string | null } | null }).vendors?.legal_name || c.vendor_id}|${c.invoice_number}|${c.total}`) * 100 })).sort((a,b)=>b.score-a.score)[0];
     if (candidate && candidate.score >= 70 && !findings.some(f => f.reason_code === "DUPLICATE_NUMBER")) {
       const a = invoiceId < candidate.id ? invoiceId : candidate.id;
       const b = invoiceId < candidate.id ? candidate.id : invoiceId;

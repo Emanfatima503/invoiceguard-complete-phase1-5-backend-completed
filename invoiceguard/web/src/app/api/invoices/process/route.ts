@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     if (!body.invoice_id) return NextResponse.json({ error: "invoice_id is required" }, { status: 400 });
     const result = await processInvoice(String(body.invoice_id));
     return NextResponse.json({ ok: true, ...result });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Invoice processing failed" }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message || "Invoice processing failed" : "Invoice processing failed" }, { status: 500 });
   }
 }

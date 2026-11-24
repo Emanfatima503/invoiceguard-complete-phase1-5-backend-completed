@@ -16,7 +16,7 @@ function pageWindow(current: number, totalPages: number): number[] {
   return pages;
 }
 
-function prettyJson(value: any): string {
+function prettyJson(value: unknown): string {
   if (value == null) return "—";
   if (typeof value === "string") return value;
   try {
@@ -31,7 +31,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const parsedPage = Number.parseInt(sp.page ?? "1", 10);
   const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
-  let rows: any[] = [];
+  let rows: Awaited<ReturnType<typeof listAudit>> = [];
   let total = 0;
   let error = "";
   let safePage = page;
@@ -40,8 +40,8 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     safePage = Math.min(page, totalPages);
     rows = await listAudit({ limit: PAGE_SIZE, offset: (safePage - 1) * PAGE_SIZE });
-  } catch (e: any) {
-    error = e.message;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load the audit log";
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

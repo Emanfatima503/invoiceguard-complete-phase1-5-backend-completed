@@ -28,7 +28,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const query = q ? q : undefined;
 
-  let rows: any[] = [];
+  let rows: Awaited<ReturnType<typeof listInvoices>> = [];
   let total = 0;
   let error = "";
   let safePage = page;
@@ -37,8 +37,8 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     safePage = Math.min(page, totalPages);
     rows = await listInvoices({ query, offset: (safePage - 1) * PAGE_SIZE, limit: PAGE_SIZE });
-  } catch (e: any) {
-    error = e.message;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load invoices";
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));

@@ -74,7 +74,7 @@ export async function listInvoices(opts: ListInvoicesOptions = {}) {
     const { data: vendorRows, error: vendorError } = await sb.from("vendors").select("id").ilike("legal_name", pattern).limit(1000);
     if (vendorError) throw new Error(vendorError.message);
     const vendorIds = (vendorRows ?? []).map((v) => v.id);
-    let vendorMatches: any[] = [];
+    let vendorMatches: NonNullable<typeof numberRes.data> = [];
     if (vendorIds.length > 0) {
       let vendorQuery = sb.from("invoices").select(INVOICE_SELECT).in("vendor_id", vendorIds);
       if (status) vendorQuery = Array.isArray(status) ? vendorQuery.in("status", status) : vendorQuery.eq("status", status);
@@ -83,7 +83,7 @@ export async function listInvoices(opts: ListInvoicesOptions = {}) {
       vendorMatches = vendorRes.data ?? [];
     }
 
-    const byId = new Map<string, any>();
+    const byId = new Map<string, NonNullable<typeof numberRes.data>[number]>();
     for (const row of [...(numberRes.data ?? []), ...vendorMatches]) byId.set(row.id, row);
     // Newest first; id breaks ties so equal timestamps order deterministically.
     const merged = [...byId.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)) || String(a.id).localeCompare(String(b.id)));

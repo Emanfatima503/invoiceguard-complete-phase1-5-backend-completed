@@ -22,7 +22,7 @@ export default async function RiskPage({ searchParams }: { searchParams: Promise
   const parsedPage = Number.parseInt(sp.page ?? "1", 10);
   const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 
-  let rows: any[] = [];
+  let rows: Awaited<ReturnType<typeof listRiskFindings>> = [];
   let total = 0;
   let error = "";
   let safePage = page;
@@ -31,8 +31,8 @@ export default async function RiskPage({ searchParams }: { searchParams: Promise
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     safePage = Math.min(page, totalPages);
     rows = await listRiskFindings({ limit: PAGE_SIZE, offset: (safePage - 1) * PAGE_SIZE });
-  } catch (e: any) {
-    error = e.message;
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Could not load risk findings";
   }
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
